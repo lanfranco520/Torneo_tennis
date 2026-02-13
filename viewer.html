@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>Viewer Tabellone Tennis</title>
+<style>
+body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f7f7f7; }
+h1 { margin-bottom: 10px; }
+.wrapper { width: 100%; height: 70vh; overflow: auto; border: 2px solid #999; background: #eaeaea; position: relative; }
+.tabellone { position: relative; width: 1800px; height: 1600px; background: #fff; }
+.partita { position: absolute; width: 245px; height: 80px; display: flex; padding: 10px; border: 2px solid #333; border-radius: 8px; background: #f0f0f0; box-sizing: border-box; }
+.nomi { flex: 1; display: flex; flex-direction: column; justify-content: space-between; font-size: 14px; }
+.nomi div { margin-bottom: 4px; }
+.vincitore { position: absolute; padding: 2px 8px; border: 2px solid green; border-radius: 4px; background: #d0ffd0; font-weight: bold; }
+.lineaZ div { position: absolute; background: black; }
+#storico { margin-top: 20px; max-height: 200px; overflow-y: auto; border: 2px solid #999; padding: 10px; background: #fff; }
+#storico h2 { margin-top: 0; font-size: 16px; }
+#storico ul { list-style: none; padding-left: 0; }
+#storico li { padding: 5px; cursor: pointer; border-bottom: 1px solid #ddd; }
+#storico li:hover { background: #eee; }
+</style>
+</head>
+<body>
+
+<h1>Viewer Tabellone Tennis</h1>
+
+<div class="wrapper">
+  <div class="tabellone" id="tabellone"></div>
+</div>
+
+<div id="storico">
+  <h2>Seleziona una versione del tabellone:</h2>
+  <ul id="listaStorico"></ul>
+</div>
+
+<script>
+const jsonFile = 'tabellone.json'; // il file JSON generato dal tuo programma principale
+const tabellone = document.getElementById('tabellone');
+const listaStorico = document.getElementById('listaStorico');
+
+let storicoData = [];
+
+// Mostra un tabellone
+function mostraTabellone(tab) {
+  tabellone.innerHTML = '';
+
+  // Rettangoli / partite
+  tab.posizioni.forEach(p => {
+    const div = document.createElement('div');
+    div.className = 'partita';
+    div.style.left = p.left + 'px';
+    div.style.top = p.top + 'px';
+    div.innerHTML = `
+      <div class="nomi">
+        <div>${p.giocatoreA}</div>
+        <div>${p.giocatoreB}</div>
+      </div>
+    `;
+    tabellone.appendChild(div);
+  });
+
+  // Vincitori
+  tab.vincitori.forEach(v => {
+    const div = document.createElement('div');
+    div.className = 'vincitore';
+    div.textContent = v.nome;
+    div.style.left = v.left + 'px';
+    div.style.top = v.top + 'px';
+    tabellone.appendChild(div);
+  });
+
+  // Linee Z
+  tab.lineeZ.forEach(z => {
+    const div = document.createElement('div');
+    div.className = 'lineaZ';
+    div.style.left = z.left + 'px';
+    div.style.top = z.top + 'px';
+    div.innerHTML = `
+      <div style="left:0; top:0; width:${z.oriz1}px; height:2px;"></div>
+      <div style="left:${z.oriz1-2}px; top:0; width:2px; height:${Math.abs(z.vert)}px;"></div>
+      <div style="left:${z.oriz1-2}px; top:${Math.abs(z.vert)-2}px; width:${z.oriz2}px; height:2px;"></div>
+    `;
+    tabellone.appendChild(div);
+  });
+}
+
+// Aggiorna la lista dello storico
+function aggiornaListaStorico() {
+  listaStorico.innerHTML = '';
+  storicoData.forEach((tab, i) => {
+    const li = document.createElement('li');
+    li.textContent = tab.data;
+    li.addEventListener('click', () => {
+      mostraTabellone(tab);
+    });
+    listaStorico.appendChild(li);
+  });
+}
+
+// Carica JSON
+fetch(jsonFile)
+  .then(res => res.json())
+  .then(data => {
+    storicoData = data;
+    if(data.length > 0) {
+      mostraTabellone(data[data.length-1]); // mostra ultima versione
+    }
+    aggiornaListaStorico();
+  })
+  .catch(err => {
+    tabellone.innerHTML = "<p style='color:red;'>Errore: impossibile caricare il tabellone. Controlla il file JSON.</p>";
+    console.error(err);
+  });
+</script>
+
+</body>
+</html>
