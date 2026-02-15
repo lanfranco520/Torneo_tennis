@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>Tabellone Tennis Storico</title>
+<style>
+body { font-family: Arial; margin:0; padding:20px; display:flex; gap:15px; }
+.container { flex:1; display:flex; flex-direction:column; }
+h1 { margin-bottom:10px; }
+.controls { margin-bottom:15px; display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+.controls input, .controls button { font-size:14px; padding:5px; }
+.wrapper { width:100%; height:calc(100vh - 120px); overflow:auto; border:2px solid #999; background:#eaeaea; position:relative; }
+.tabellone { position:relative; width:2000px; height:1600px; background:#fff; transform-origin:0 0; }
+.partita { position:absolute; width:245px; height:80px; display:flex; padding:10px; border:2px solid #333; border-radius:8px; background:#f0f0f0; box-sizing:border-box; cursor:grab; user-select:none; }
+.partita:active { cursor:grabbing; box-shadow:2px 4px 10px rgba(0,0,0,0.3);}
+.nomi { flex:1; display:flex; flex-direction:column; justify-content:space-between; font-size:14px; }
+.nomi input { width:100%; font-size:14px; padding:2px; box-sizing:border-box; }
+.sets { display:flex; flex-direction:column; gap:4px; }
+.sets div { display:flex; gap:4px; }
+.sets div:last-child { margin-top:9px; }
+.sets input { width:20px; text-align:center; }
+#menuRettangoli { width:300px; border:2px solid #999; padding:10px; background:#fff; height:calc(100vh-20px); overflow-y:auto; }
+#menuRettangoli h2 { text-align:center; margin-top:0; font-size:16px; }
+#menuRettangoli ul { list-style:none; padding-left:0; }
+#menuRettangoli li { padding:5px; border-bottom:1px solid #ddd; cursor:pointer; display:flex; justify-content:space-between; align-items:center; }
+#menuRettangoli li:hover { background:#eee; }
+.lineaZ { position:absolute; cursor:grab; }
+.lineaZ:active { cursor:grabbing; }
+.vincitore { position:absolute; padding:0.5px 10px; border:2px solid green; border-radius:2px; background:#d0ffd0; cursor:grab; user-select:none; }
+.vincitore:active { cursor:grabbing; }
+#modalStorico { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:none; justify-content:center; align-items:center; }
+#modalContent { background:#fff; padding:20px; width:400px; max-height:80vh; overflow-y:auto; border-radius:8px; box-shadow:0 0 10px #000; }
+#modalContent h2 { text-align:center; margin-top:0; }
+#modalContent ul { list-style:none; padding-left:0; }
+#modalContent li { padding:8px; border-bottom:1px solid #ccc; display:flex; justify-content:space-between; align-items:center; }
+#modalContent li:hover { background:#f0f0f0; }
+#modalContent button { background:transparent; border:none; cursor:pointer; color:red; }
+#modalClose { display:block; margin:0 auto 10px; padding:5px 10px; cursor:pointer; }
+</style>
+</head>
+<body>
+
+<div class="container">
+<h1>Tabellone Tennis Storico</h1>
+
+<div class="controls">
+<label>Numero rettangoli: <input type="number" id="numRettangoli" value="31" min="1"></label>
+<button id="genera">Genera</button>
+<button id="salva">Salva</button>
+<button id="reset">Reset</button>
+<button id="ricarica">Storico</button>
+<button id="zoomIn">+</button>
+<button id="zoomOut">-</button>
+<label>Z: oriz1 <input type="number" id="oriz1" value="100" style="width:50px;"> verticale <input type="number" id="vert" value="50" style="width:50px;"> oriz2 <input type="number" id="oriz2" value="100" style="width:50px;"></label>
+<button id="aggiungiZ">Aggiungi Z</button>
+<label>Vincitore/Ora: <input type="text" id="inputVincitore" style="width:100px;"><button id="aggiungiVincitore">Aggiungi</button></label>
+<button id="esportaJson">Esporta JSON</button>
+<input type="file" id="caricaJson">
+</div>
+
+<div class="wrapper">
+<div class="tabellone" id="tabellone"></div>
+</div>
+</div>
+
+<div id="menuRettangoli">
+<h2>Elenco Rettangoli</h2>
+<ul id="listaRettangoli"></ul>
+</div>
+
+<div id="modalStorico">
+<div id="modalContent">
+<h2>Storico Tabelloni</h2>
+<ul id="listaStorico"></ul>
+<button id="modalClose">Chiudi</button>
+</div>
+</div>
+
+<script>
+const tabellone = document.getElementById('tabellone');
+const wrapper = document.querySelector('.wrapper');
+const generaBtn = document.getElementById('genera');
+const salvaBtn = document.getElementById('salva');
+const resetBtn = document.getElementById('reset');
+const ricaricaBtn = document.getElementById('ricarica');
+const zoomInBtn = document.getElementById('zoomIn');
+const zoomOutBtn = document.getElementById('zoomOut');
+const numInput = document.getElementById('numRettangoli');
+const listaRettangoli = document.getElementById('listaRettangoli');
+const modalStorico = document.getElementById('modalStorico');
+const listaStorico = document.getElementById('listaStorico');
+const modalClose = document.getElementById('modalClose');
+const aggiungiZBtn = document.getElementById('aggiungiZ');
+const inputOriz1 = document.getElementById('oriz1');
+const inputVert = document.getElementById('vert');
+const inputOriz2 = document.getElementById('oriz2');
+const aggiungiVincitoreBtn = document.getElementById('aggiungiVincitore');
+const inputVincitore = document.getElementById('inputVincitore');
+const esportaJsonBtn = document.getElementById('esportaJson');
+const caricaJsonInput = document.getElementById('caricaJson');
+
+let scale = 1;
+const COLONNE = 5, GAP_X=250, GAP_Y=100;
+
+function generaRettangoli(num=numInput.value){
+    tabellone.innerHTML='';
+    for(let i=0;i<num;i++){
+        const p = document.createElement('div');
+        p.className='partita';
+        const col=i%COLONNE;
+        const row=Math.floor(i/COLONNE);
+        p.style.left=(20+col*GAP_X)+'px';
+        p.style.top=(20+row*GAP_Y)+'px';
+        p.innerHTML=`<div class="nomi">
+            <div><input placeholder="Giocatore A"></div>
+            <div><input placeholder="Giocatore B"></div>
+        </div>
+        <div class="sets">
+            <div><input><input><input></div>
+            <div><input><input><input></div>
+        </div>`;
+        tabellone.appendChild(p);
+    }
+    abilitaDrag();
+    aggiornaMenu();
+}
+
+function abilitaDrag(){
+    document.querySelectorAll('.partita').forEach(p=>{
+        let dragging=false, offsetX=0, offsetY=0;
+        p.addEventListener('pointerdown', e=>{
+            if(e.target.tagName==='INPUT') return;
+            dragging=true; p.setPointerCapture(e.pointerId);
+            const rect=p.getBoundingClientRect();
+            offsetX=e.clientX-rect.left; offsetY=e.clientY-rect.top;
+            p.style.zIndex=1000;
+        });
+        wrapper.addEventListener('pointermove', e=>{
+            if(!dragging) return;
+            const w=wrapper.getBoundingClientRect();
+            p.style.left=(e.clientX - w.left + wrapper.scrollLeft - offsetX)/scale+'px';
+            p.style.top=(e.clientY - w.top + wrapper.scrollTop - offsetY)/scale+'px';
+        });
+        p.addEventListener('pointerup', ()=>{dragging=false; p.style.zIndex='';});
+        p.addEventListener('pointercancel', ()=>{dragging=false; p.style.zIndex='';});
+    });
+}
+
+function creaZ(oriz1, vert, oriz2, left=20, top=20){
+    const z=document.createElement('div'); z.className='lineaZ';
+    z.style.left=left+'px'; z.style.top=top+'px';
+    z.dataset.oriz1=oriz1; z.dataset.vert=vert; z.dataset.oriz2=oriz2;
+    const v=Math.abs(vert);
+    if(vert>=0){
+        z.innerHTML=`<div style="position:absolute; left:0; top:0; width:${oriz1}px; height:2px; background:black;"></div>
+        <div style="position:absolute; left:${oriz1-2}px; top:0; width:2px; height:${v}px; background:black;"></div>
+        <div style="position:absolute; left:${oriz1-2}px; top:${v-2}px; width:${oriz2}px; height:2px; background:black;"></div>`;
+    }else{
+        z.innerHTML=`<div style="position:absolute; left:0; bottom:0; width:${oriz1}px; height:2px; background:black;"></div>
+        <div style="position:absolute; left:${oriz1-2}px; bottom:0; width:2px; height:${v}px; background:black;"></div>
+        <div style="position:absolute; left:${oriz1-2}px; bottom:${v-2}px; width:${oriz2}px; height:2px; background:black;"></div>`;
+    }
+    tabellone.appendChild(z);
+    abilitaDragZ(z);
+}
+
+function abilitaDragZ(z){
+    let dragging=false, offsetX=0, offsetY=0;
+    z.addEventListener('pointerdown', e=>{
+        dragging=true; z.setPointerCapture(e.pointerId);
+        const rect=z.getBoundingClientRect(); offsetX=e.clientX-rect.left; offsetY=e.clientY-rect.top;
+    });
+    wrapper.addEventListener('pointermove', e=>{
+        if(!dragging) return;
+        const w=wrapper.getBoundingClientRect();
+        z.style.left=(e.clientX - w.left + wrapper.scrollLeft - offsetX)/scale+'px';
+        z.style.top=(e.clientY - w.top + wrapper.scrollTop - offsetY)/scale+'px';
+    });
+    z.addEventListener('pointerup', ()=>dragging=false);
+    z.addEventListener('pointercancel', ()=>dragging=false);
+    z.addEventListener('contextmenu', e=>{e.preventDefault(); if(confirm('Elimina linea Z?')) z.remove();});
+}
+
+function creaVincitore(nome, left=20, top=20){
+    const v=document.createElement('div'); v.className='vincitore'; v.textContent=nome;
+    v.style.left=left+'px'; v.style.top=top+'px'; tabellone.appendChild(v);
+    let dragging=false, offsetX=0, offsetY=0;
+    v.addEventListener('pointerdown', e=>{
+        dragging=true; v.setPointerCapture(e.pointerId);
+        const rect=v.getBoundingClientRect(); offsetX=e.clientX-rect.left; offsetY=e.clientY-rect.top;
+    });
+    wrapper.addEventListener('pointermove', e=>{
+        if(!dragging) return;
+        const w=wrapper.getBoundingClientRect();
+        v.style.left=(e.clientX - w.left + wrapper.scrollLeft - offsetX)/scale+'px';
+        v.style.top=(e.clientY - w.top + wrapper.scrollTop - offsetY)/scale+'px';
+    });
+    v.addEventListener('pointerup', ()=>dragging=false);
+    v.addEventListener('pointercancel', ()=>dragging=false);
+    v.addEventListener('contextmenu', e=>{e.preventDefault(); if(confirm('Elimina vincitore?')) v.remove();});
+}
+
+function setZoom(f){ scale=Math.max(0.2,Math.min(3,scale*f)); tabellone.style.transform=`scale(${scale})`; }
+
+function aggiornaMenu(){
+    listaRettangoli.innerHTML='';
+    document.querySelectorAll('.partita').forEach((p,i)=>{
+        const li=document.createElement('li');
+        li.textContent=`Rettangolo ${i+1} (x:${Math.round(parseFloat(p.style.left))}, y:${Math.round(parseFloat(p.style.top))})`;
+        li.addEventListener('click', ()=>{
+            wrapper.scrollLeft=p.offsetLeft*scale-50;
+            wrapper.scrollTop=p.offsetTop*scale-50;
+            p.style.background='#d0f0d0';
+            setTimeout(()=>p.style.background='#f0f0f0',500);
+        });
+        listaRettangoli.appendChild(li);
+    });
+}
+
+function salvaPosizioni(){
+    const posizioniRettangoli=[]; 
+    document.querySelectorAll('.partita').forEach(p=>{
+        const giocatoreA=p.querySelector('.nomi div:first-child input').value;
+        const giocatoreB=p.querySelector('.nomi div:last-child input').value;
+        const sets=Array.from(p.querySelectorAll('.sets div')).map(div=>Array.from(div.querySelectorAll('input')).map(input=>input.value));
+        posizioniRettangoli.push({left:parseFloat(p.style.left),top:parseFloat(p.style.top),giocatoreA,giocatoreB,sets});
+    });
+    const lineeZ=[]; 
+    document.querySelectorAll('.lineaZ').forEach(z=>{
+        lineeZ.push({left:parseFloat(z.style.left),top:parseFloat(z.style.top),oriz1:parseInt(z.dataset.oriz1),vert:parseInt(z.dataset.vert),oriz2:parseInt(z.dataset.oriz2)});
+    });
+    const vincitori=[]; 
+    document.querySelectorAll('.vincitore').forEach(v=>{
+        vincitori.push({left:parseFloat(v.style.left),top:parseFloat(v.style.top),nome:v.textContent});
+    });
+    const data=new Date().toLocaleString();
+    const storico=JSON.parse(localStorage.getItem('storicoTabelloni')||'[]');
+    storico.push({data,numRettangoli:posizioniRettangoli.length,posizioni:posizioniRettangoli,lineeZ,vincitori});
+    localStorage.setItem('storicoTabelloni',JSON.stringify(storico));
+    alert('Salvato: '+data);
+    aggiornaStorico();
+}
+
+function aggiornaStorico(){
+    listaStorico.innerHTML=''; 
+    const storico=JSON.parse(localStorage.getItem('storicoTabelloni')||'[]');
+    storico.forEach((s,i)=>{
+        const li=document.createElement('li'); 
+        li.textContent=s.data;
+        const btn=document.createElement('button'); btn.textContent='🗑️';
+        btn.addEventListener('click', e=>{ 
+            e.stopPropagation(); 
+            if(confirm('Elimina salvataggio?')){ 
+                storico.splice(i,1); 
+                localStorage.setItem('storicoTabelloni',JSON.stringify(storico)); 
+                aggiornaStorico();
+            }
+        });
+        li.appendChild(btn);
+        li.addEventListener('click', ()=>{ caricaTabellone(s); modalStorico.style.display='none';});
+        listaStorico.appendChild(li);
+    });
+}
+
+function caricaTabellone(s){
+    tabellone.innerHTML='';
+    s.posizioni.forEach(p=>{
+        const div=document.createElement('div'); div.className='partita';
+        div.style.left=p.left+'px'; div.style.top=p.top+'px';
+        div.innerHTML=`<div class="nomi"><div><input value="${p.giocatoreA}"></div><div><input value="${p.giocatoreB}"></div></div>
+        <div class="sets"><div><input value="${p.sets[0][0]}"><input value="${p.sets[0][1]}"><input value="${p.sets[0][2]}"></div>
+        <div><input value="${p.sets[1][0]}"><input value="${p.sets[1][1]}"><input value="${p.sets[1][2]}"></div></div>`;
+        tabellone.appendChild(div);
+    });
+    s.lineeZ.forEach(z=>{ creaZ(z.oriz1,z.vert,z.oriz2,z.left,z.top); });
+    s.vincitori.forEach(v=>{ creaVincitore(v.nome,v.left,v.top); });
+    abilitaDrag(); aggiornaMenu();
+}
+
+generaBtn.addEventListener('click', ()=>generaRettangoli());
+salvaBtn.addEventListener('click', salvaPosizioni);
+resetBtn.addEventListener('click', ()=>{
+    tabellone.innerHTML='';
+    listaRettangoli.innerHTML='';
+});
+ricaricaBtn.addEventListener('click', ()=>{ aggiornaStorico(); modalStorico.style.display='flex';});
+modalClose.addEventListener('click', ()=>modalStorico.style.display='none');
+zoomInBtn.addEventListener('click', ()=>setZoom(1.2));
+zoomOutBtn.addEventListener('click', ()=>setZoom(0.8));
+aggiungiZBtn.addEventListener('click', ()=>creaZ(parseInt(inputOriz1.value),parseInt(inputVert.value),parseInt(inputOriz2.value)));
+aggiungiVincitoreBtn.addEventListener('click', ()=>{
+    if(inputVincitore.value.trim()!==''){ 
+        creaVincitore(inputVincitore.value); 
+        inputVincitore.value=''; 
+    }
+});
+esportaJsonBtn.addEventListener('click', ()=>{
+    const storico=JSON.parse(localStorage.getItem('storicoTabelloni')||'[]');
+    if(storico.length===0){ alert('Nessuno storico da esportare!'); return;}
+    const blob=new Blob([JSON.stringify(storico,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download='tabellone.json'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); alert('Esportato correttamente!');
+});
+caricaJsonInput.addEventListener('change', e=>{
+    const file=e.target.files[0];
+    if(!file) return;
+    const reader=new FileReader();
+    reader.onload=function(ev){ 
+        try {
+            const dati=JSON.parse(ev.target.result); 
+            if(!Array.isArray(dati)) throw new Error("Formato JSON non valido");
+            dati.forEach(s=>caricaTabellone(s));
+            // Aggiorna anche lo storico
+            const storicoEsistente = JSON.parse(localStorage.getItem('storicoTabelloni')||'[]');
+            localStorage.setItem('storicoTabelloni',JSON.stringify([...storicoEsistente, ...dati]));
+            aggiornaStorico();
+        } catch(err){
+            alert("Errore caricamento JSON: "+err.message);
+        }
+    };
+    reader.readAsText(file);
+});
+
+generaRettangoli();
+</script>
+</body>
+</html>
