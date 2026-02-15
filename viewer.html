@@ -63,15 +63,14 @@ h1 { text-align:center; color:#2a7ae2; margin-bottom:30px; }
 <div id="tabellone"></div>
 
 <script>
-// Qui metti il link corretto al tuo JSON su GitHub Pages
-const urlJSON = 'https://lanfranco520.github.io/Torneo_tennis/tabellone.json';
+const urlJSON = 'tabellone.json';
 
 fetch(urlJSON)
-.then(res => {
+  .then(res => {
     if (!res.ok) throw new Error('Impossibile caricare il JSON: ' + res.status);
     return res.json();
-})
-.then(data => {
+  })
+  .then(data => {
     const container = document.getElementById('tabellone');
 
     data.forEach(turno => {
@@ -118,11 +117,11 @@ fetch(urlJSON)
             container.appendChild(vinc);
         });
     });
-})
-.catch(err => {
+  })
+  .catch(err => {
     console.error(err);
     alert('Errore nel caricamento del tabellone: ' + err.message);
-});
+  });
 </script>
 
 </body>
